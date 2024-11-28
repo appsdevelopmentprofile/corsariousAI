@@ -1,0 +1,16 @@
+ultralytics
+easyocr
+opencv-python==4.8.0.74
+numpy
+pillow
+streamlit
+onnxruntime
+ultralytics
+speechrecognition
+gtts
+sounddevice==0.4.6
+openai
+SpeechRecognition
+python-docx
+ffmpeg
+playsound
