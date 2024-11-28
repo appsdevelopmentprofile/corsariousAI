@@ -1,5 +1,5 @@
-streamlit==1.20.0
-pytesseract==0.3.9
-Pillow==8.4.0
-gTTS==2.2.3
-SpeechRecognition==3.10.0
+streamlit
+pytesseract
+Pillow
+gTTS
+SpeechRecognition
