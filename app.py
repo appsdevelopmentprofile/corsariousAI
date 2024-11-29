@@ -64,7 +64,25 @@ def overlay_defect(background_image, synthetic_image, mask, alpha=0.7):
     blended_image = Image.fromarray(blended_np)
     return blended_image
 
-
+# Resize synthetic image and mask to match the background size
+    synthetic_image = synthetic_image.resize(background_image.size, Image.Resampling.LANCZOS)
+    mask = mask.resize(background_image.size, Image.Resampling.LANCZOS)
+    
+    # Convert images to numpy arrays
+    background_np = np.array(background_image)
+    synthetic_np = np.array(synthetic_image)
+    mask_np = np.array(mask) / 255.0  # Normalize mask to [0, 1]
+    
+    # Ensure the mask has the same number of channels as the background image
+    if len(mask_np.shape) == 2:  # Grayscale mask
+        mask_np = np.stack([mask_np] * 3, axis=-1)
+    
+    # Apply defect only on the masked region
+    blended_np = (background_np * (1 - mask_np) + synthetic_np * mask_np * alpha).astype(np.uint8)
+    
+    # Convert back to a PIL image
+    blended_image = Image.fromarray(blended_np)
+    return blended_image
 
 
 
