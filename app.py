@@ -41,8 +41,8 @@ with st.sidebar:
 st.title("Synthetic Image Generation with Structural Consistency")
 
 # Dropdown menus for asset and defect selection
-asset = st.selectbox("Select an asset", ["Pipeline"])
-defect = st.selectbox("Select a defect", ["Rust"])
+asset = st.selectbox("Select an asset", ["Pipeline", "Tank", "Pump", "Valve"])
+defect = st.selectbox("Select a defect", ["Rust", "Crack", "Leak", "Dirt"])
 
 # Text input for prompt
 user_features = st.text_input("Describe the new features you want to add", value="Heavy rust, corrosion, weathered, damaged, old, abandoned")
