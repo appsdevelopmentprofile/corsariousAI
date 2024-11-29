@@ -3,14 +3,18 @@ from PIL import Image
 import numpy as np
 import cv2
 import streamlit as st
+import openai
+import requests
 
-# Function to generate a synthetic image placeholder based on a prompt (replace with actual implementation)
-def generate_synthetic_image(prompt):
+# Function to generate a synthetic image based on a prompt
+def generate_synthetic_image(prompt, api_key):
+    openai.api_key = api_key
     try:
-        # Placeholder: Replace this with your image generation implementation
-        st.warning("Image generation functionality is not implemented. Returning a placeholder image.")
-        placeholder_image = Image.new("RGB", (1024, 1024), color=(255, 0, 0))  # Red placeholder image
-        return placeholder_image
+        response = openai.Image.create(prompt=prompt, n=1, size="1024x1024")
+        image_url = response['data'][0]['url']
+        response = requests.get(image_url)
+        synthetic_image = Image.open(BytesIO(response.content)).convert("RGB")
+        return synthetic_image
     except Exception as e:
         st.error(f"Error generating image: {e}")
         return None
@@ -29,7 +33,7 @@ def segment_asset(image):
     return mask_pil
 
 # Function to overlay the defect on the segmented asset
-def overlay_defect(background_image, synthetic_image, mask, alpha=0.7):
+def overlay_defect(background_image, synthetic_image, mask, alpha=0.1):
     # Resize synthetic image and mask to match the background size
     synthetic_image = synthetic_image.resize(background_image.size, Image.Resampling.LANCZOS)
     mask = mask.resize(background_image.size, Image.Resampling.LANCZOS)
@@ -39,7 +43,7 @@ def overlay_defect(background_image, synthetic_image, mask, alpha=0.7):
     synthetic_np = np.array(synthetic_image)
     mask_np = np.array(mask) / 255  # Normalize mask to [0, 1]
     
-    # Blend images only in masked regions
+    # Blend images only in masked regions (10% opacity for defect)
     blended_np = (background_np * (1 - mask_np) + synthetic_np * mask_np * alpha).astype(np.uint8)
     
     # Convert back to a PIL image
@@ -49,6 +53,11 @@ def overlay_defect(background_image, synthetic_image, mask, alpha=0.7):
 # Streamlit UI
 def main():
     st.title("Synthetic Defect Generation for Assets")
+
+    # Sidebar for API key input
+    with st.sidebar:
+        openai_api_key = st.text_input("Insert your OpenAI API key:", type="password")
+        st.markdown("-------")
 
     # Upload original image
     uploaded_file = st.file_uploader("Upload an image of the asset (equipment):", type=["jpg", "png", "jpeg"])
@@ -61,11 +70,11 @@ def main():
         # Text input for prompt
         prompt = st.text_input("Describe the defect (e.g., 'heavy rust on the pipeline'):")
 
-        # Generate and overlay synthetic defect if prompt is provided
+        # Generate and overlay synthetic defect if prompt and API key are provided
         if st.button("Generate Synthetic Defect"):
-            if prompt:
+            if openai_api_key and prompt:
                 # Generate synthetic image
-                synthetic_image = generate_synthetic_image(prompt)
+                synthetic_image = generate_synthetic_image(prompt, openai_api_key)
                 if synthetic_image:
                     # Segment the asset
                     mask = segment_asset(background_image)
@@ -76,7 +85,7 @@ def main():
                     # Display result
                     st.image(result_image, caption="Synthetic Image with Defect", use_column_width=True)
             else:
-                st.error("Please provide a valid prompt.")
+                st.error("Please provide a valid API key and prompt.")
 
 if __name__ == "__main__":
     main()
