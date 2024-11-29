@@ -30,7 +30,7 @@ def segment_asset(image):
         st.error(f"Error during segmentation: {e}")
         return None
 
-def overlay_defect(background_image, synthetic_image, mask, alpha=0.1):
+def overlay_defect(background_image, synthetic_image, mask, alpha=0.2):  # Lower alpha for subtlety
     # Resize synthetic image
     synthetic_image = synthetic_image.resize(background_image.size, Image.Resampling.LANCZOS)
 
