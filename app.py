@@ -28,7 +28,7 @@ def generate_synthetic_features(prompt, api_key):
 # Function to blend the uploaded image and synthetic features
 def blend_images(background_image, synthetic_image, alpha=0.5):
     # Resize synthetic image to match background size
-    synthetic_image = synthetic_image.resize(background_image.size, Image.ANTIALIAS)
+    synthetic_image = synthetic_image.resize(background_image.size, Image.Resampling.LANCZOS)
     
     # Blend the images together
     blended_image = Image.blend(background_image, synthetic_image, alpha)
