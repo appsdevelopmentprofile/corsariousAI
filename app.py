@@ -12,8 +12,7 @@ def generate_synthetic_image(prompt, api_key):
         st.info("Generating synthetic image...")
         response = openai.Image.create(prompt=prompt, n=1, size="1024x1024")
         image_url = response['data'][0]['url']
-        response = requests.get(image_url)   
-
+        response = requests.get(image_url)
         synthetic_image = Image.open(BytesIO(response.content)).convert("RGB")
         st.success("Synthetic image generated successfully!")
         return synthetic_image
