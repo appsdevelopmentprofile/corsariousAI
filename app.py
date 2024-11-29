@@ -1,15 +1,4 @@
 import openai
-import os
-from PIL import Image, ImageOps
-import requests
-from io import BytesIO
-import streamlit as st
-import numpy as np
-import cv2  # For mask operations
-
-
-# Function to generate synthetic image with defect using OpenAI API
-import openai
 import requests
 from io import BytesIO
 from PIL import Image
@@ -60,15 +49,15 @@ def overlay_defect(background_image, synthetic_image, mask, alpha=0.7):
     blended_image = Image.fromarray(blended_np)
     return blended_image
 
-# Main workflow
+# Main function to process user-submitted image
 def main():
-    # Define API key and prompt for synthetic image generation
-    api_key = "your_openai_api_key"
-    prompt = "Realistic rust defects on industrial equipment"
-
-    # Load the original background image
-    background_image_path = "equipment.jpg"
+    # Accept user input for the image file
+    background_image_path = input("Enter the path to the image file: ")
     background_image = Image.open(background_image_path)
+
+    # Define API key and prompt for synthetic image generation
+    api_key = "your_openai_api_key"  # Replace with your OpenAI API key
+    prompt = "Realistic rust defects on industrial equipment"
 
     # Generate and download the synthetic image
     synthetic_image_url = generate_synthetic_image(prompt, api_key)
@@ -81,12 +70,13 @@ def main():
     blended_image = overlay_defect(background_image, synthetic_image, mask, alpha=0.7)
 
     # Save or display the result
-    blended_image.save("synthetic_image_with_defects.png")
+    output_path = "synthetic_image_with_defects.png"
+    blended_image.save(output_path)
     blended_image.show()
+    print(f"Saved the synthetic image to {output_path}")
 
 if __name__ == "__main__":
     main()
-
 
 
 
