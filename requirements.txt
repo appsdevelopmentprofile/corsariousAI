@@ -1,5 +1,5 @@
 openai==0.28
-opencv
+opencv-python
 Pillow
 requests
 streamlit
