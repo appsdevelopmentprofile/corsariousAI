@@ -1,5 +1,5 @@
 openai==0.28
-opencv-python
+opencv-python-headless==4.8.0.74
 Pillow
 requests
 streamlit
