@@ -1,99 +1,80 @@
-import streamlit as st
+import openai
 import os
-import pytesseract
 from PIL import Image
-from gtts import gTTS
-import speech_recognition as sr
-import tempfile
-import re
+import requests
+from io import BytesIO
+import streamlit as st
 
-# Set up the Streamlit app
-st.title("Document Submission Prototype")
+# Function to generate the synthetic image using OpenAI API
+def generate_image(prompt, api_key):
+    # Set up the OpenAI API key
+    openai.api_key = api_key
+    
+    # Use the DALL-E model to generate an image based on the prompt
+    response = openai.Image.create(
+        prompt=prompt,
+        n=1,
+        size="1024x1024"
+    )
+    
+    # Extract the image URL from the response
+    image_url = response['data'][0]['url']
+    
+    return image_url
 
-# File upload section
-uploaded_file = st.file_uploader("Upload your file (e.g., 1-1_2-IN-70R902_CNPI25E_Cleanliness_and_Drying_Summary_19079_page_1.jpg)", type=["jpg", "jpeg", "png"])
+# Function to download the image
+def download_image(image_url, save_path):
+    # Download the image from the URL
+    response = requests.get(image_url)
+    image = Image.open(BytesIO(response.content))
+    
+    # Save the image
+    image.save(save_path)
+    return save_path
 
-if uploaded_file is not None:
-    # Save the uploaded file
-    file_path = os.path.join("/content", uploaded_file.name)
-    with open(file_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    st.success(f"File uploaded: {uploaded_file.name}")
+# Streamlit UI
+with st.sidebar:
+    openai_api_key = st.text_input("Insert your API key:")
+    st.markdown("-------")
 
-    # Rename the file
-    renamed_file = "Braya_Checklist_Cleanliness_and_Drying_Piping_170R902.jpg"
-    renamed_path = os.path.join("/content", renamed_file)
-    os.rename(file_path, renamed_path)
-    st.success(f"File renamed to: {renamed_file}")
+# Title
+st.title("Synthetic Image Generation with Structural Consistency")
 
-    # Perform OCR to extract text under the label "Task"
-    image = Image.open(renamed_path)
-    text = pytesseract.image_to_string(image)
+# Dropdown menus for asset and defect selection
+asset = st.selectbox("Select an asset", ["Pipeline"])
+defect = st.selectbox("Select a defect", ["Rust"])
 
-    # Simulate extracting specific text under "Task"
-    task_label = "Task"
-    extracted_text = ""
-    if task_label in text:
-        task_index = text.index(task_label) + len(task_label)
-        extracted_text = text[task_index:].strip().split("\n")[0]
+# Text input for prompt
+user_features = st.text_input("Describe the new features you want to add", value="Heavy rust, corrosion, weathered, damaged, old, abandoned")
+
+# Placeholder for image upload and display
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("Original Image")
+    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
+    
+    if uploaded_file is not None:
+        # Open the image using PIL
+        image = Image.open(uploaded_file)
+        # Display the image in Streamlit
+        st.image(image, caption="Uploaded Image", use_column_width=False)
+
+# Generate button and synthetic image logic
+if st.button("Generate Synthetic Image"):
+    if openai_api_key:
+        if uploaded_file is not None:
+            # Generate a prompt that includes both the structure and the new features
+            image_description = f"An image of a {asset} with the structure similar to the uploaded image, but showing {defect}. {user_features}."
+            
+            # Generate the synthetic image
+            image_url = generate_image(image_description, openai_api_key)
+            
+            with col2:
+                st.subheader("Synthetic Image")
+                # Display the synthetic image in Streamlit
+                st.image(image_url, caption="Synthetic Image", use_column_width=True)
+        else:
+            st.warning("Please upload an image to use as a reference.")
     else:
-        st.error("Unable to find 'Task' in the document.")
-
-    if extracted_text:
-        st.write("Extracted Text under 'Task':")
-        st.write(extracted_text)
-
-        # Generate MP3 from the extracted text
-        mp3_file = "/content/task_audio.mp3"
-        tts = gTTS(text=extracted_text, lang='en')
-        tts.save(mp3_file)
-
-        # Display the MP3 file in Streamlit
-        st.audio(mp3_file, format="audio/mp3")
-        st.success("MP3 file generated and ready to play!")
-
-        # Record engineer's responses
-        st.write("Please answer the questions. Recording will stop when you say 'Q COMPLETED'.")
-        if st.button("Start Recording"):
-            recognizer = sr.Recognizer()
-            with sr.Microphone() as source:
-                st.info("Recording... Please speak clearly.")
-                audio_data = recognizer.listen(source, timeout=10, phrase_time_limit=30)
-
-                try:
-                    response_text = recognizer.recognize_google(audio_data)
-                    st.write("Captured Response:", response_text)
-
-                    if "Q COMPLETED" in response_text:
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_mp3:
-                            temp_audio = gTTS(text=response_text.replace("Q COMPLETED", ""), lang='en')
-                            temp_audio.save(temp_mp3.name)
-                            st.audio(temp_mp3.name, format="audio/mp3")
-                            st.success("Response saved and converted to MP3.")
-
-                        # Tag responses with Yes or No and fill the checkboxes
-                        response_tags = {
-                            "Q1: What is the project?": None,
-                            "Q2: What is the type of document?": None,
-                            "Q3: What is the operation?": None,
-                            "Q4: What is the type of equipment?": None,
-                            "Q5: What is the label of the equipment (or tag of the process)?: None"
-                        }
-
-                        # Assuming that responses are in the format "Q1: ... Yes/No"
-                        for question, _ in response_tags.items():
-                            if question in response_text:
-                                response_tags[question] = "Yes" if "Yes" in response_text else "No"
-
-                        # Confirm checkbox filling
-                        st.write("Responses tagged with Yes/No:")
-                        for question, answer in response_tags.items():
-                            st.write(f"{question}: {answer}")
-
-                        # Confirm document saving
-                        st.success("Document has been saved, autofill with Virtual Assistant completed.")
-
-                except sr.UnknownValueError:
-                    st.error("Could not understand the audio. Please try again.")
-                except sr.RequestError as e:
-                    st.error(f"Speech Recognition error: {e}")
+        st.warning("Please enter your OpenAI API key.")
