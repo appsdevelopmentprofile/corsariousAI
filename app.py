@@ -1,84 +1,91 @@
 import openai
-from PIL import Image, ImageDraw, ImageFont
+import os
+from PIL import Image, ImageOps
 import requests
 from io import BytesIO
 import streamlit as st
+import numpy as np
+import cv2  # For mask operations
 
-# Function to generate synthetic features using OpenAI's API
-def generate_synthetic_features(prompt, api_key):
-    # Set up the OpenAI API key
+
+# Function to generate synthetic image with defect using OpenAI API
+def generate_synthetic_image(prompt, api_key):
     openai.api_key = api_key
-    
-    # Use DALL-E to generate the synthetic image
-    response = openai.Image.create(
-        prompt=prompt,
-        n=1,
-        size="1024x1024"
-    )
-    
-    # Extract the image URL
+    response = openai.Image.create(prompt=prompt, n=1, size="1024x1024")
     image_url = response['data'][0]['url']
-    
-    # Download the generated image
+    return image_url
+
+
+# Function to download and process synthetic image
+def download_image(image_url):
     response = requests.get(image_url)
     synthetic_image = Image.open(BytesIO(response.content))
-    
     return synthetic_image
 
-# Function to blend the uploaded image and synthetic features
-def blend_images(background_image, synthetic_image, alpha=0.5):
+
+# Function to segment the asset (equipment) using a simple segmentation technique (mockup)
+def segment_asset(image):
+    # Convert the image to grayscale and apply thresholding (mockup example)
+    image_np = np.array(image)
+    gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+    _, mask = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)  # Adjust threshold
+    
+    # Convert mask to PIL image
+    mask_pil = Image.fromarray(mask)
+    return mask_pil
+
+
+# Function to overlay the synthetic defect on the segmented asset
+def overlay_defect(background_image, synthetic_image, mask, alpha=0.7):
     # Resize synthetic image to match background size
     synthetic_image = synthetic_image.resize(background_image.size, Image.Resampling.LANCZOS)
+    mask = mask.resize(background_image.size, Image.Resampling.LANCZOS)
     
-    # Blend the images together
-    blended_image = Image.blend(background_image, synthetic_image, alpha)
+    # Convert images to numpy arrays
+    background_np = np.array(background_image)
+    synthetic_np = np.array(synthetic_image)
+    mask_np = np.array(mask) / 255  # Normalize mask to [0, 1]
     
+    # Blend images only in masked regions
+    blended_np = (background_np * (1 - mask_np) + synthetic_np * mask_np * alpha).astype(np.uint8)
+    
+    # Convert back to PIL image
+    blended_image = Image.fromarray(blended_np)
     return blended_image
 
+
 # Streamlit UI
+st.title("Synthetic Defect Generation for Assets")
+
 with st.sidebar:
-    openai_api_key = st.text_input("Insert your API key:")
+    openai_api_key = st.text_input("Insert your OpenAI API key:", type="password")
     st.markdown("-------")
 
-# Title
-st.title("Synthetic Image Generation with Background Preservation")
+# Upload original image
+uploaded_file = st.file_uploader("Upload an image of the asset (equipment):", type=["jpg", "png", "jpeg"])
 
-# File uploader for background image
-uploaded_file = st.file_uploader("Upload a background image...", type=["jpg", "png", "jpeg"])
-
-# Text input for synthetic features prompt
-prompt = st.text_input("Describe the new features for the synthetic image:", value="Heavy rust, corrosion, weathered, damaged, old, abandoned")
-
-# Display the uploaded image
 if uploaded_file is not None:
-    # Open the image using PIL
-    background_image = Image.open(uploaded_file)
-    
-    # Display the uploaded image
-    st.image(background_image, caption="Uploaded Background Image", use_column_width=True)
+    # Display uploaded image
+    background_image = Image.open(uploaded_file).convert("RGB")
+    st.image(background_image, caption="Uploaded Image", use_column_width=True)
 
-# Generate button
-if st.button("Generate Synthetic Image"):
-    if openai_api_key and uploaded_file:
-        # Generate synthetic features
-        st.write("Generating synthetic features...")
-        synthetic_features = generate_synthetic_features(prompt, openai_api_key)
-        
-        # Blend synthetic features into the uploaded background
-        st.write("Blending synthetic features with the background image...")
-        blended_image = blend_images(background_image, synthetic_features, alpha=0.5)
-        
-        # Display the final blended image
-        st.image(blended_image, caption="Generated Synthetic Image", use_column_width=True)
-        
-        # Option to download the blended image
-        buffered = BytesIO()
-        blended_image.save(buffered, format="PNG")
-        st.download_button(
-            label="Download Synthetic Image",
-            data=buffered.getvalue(),
-            file_name="synthetic_image.png",
-            mime="image/png"
-        )
-    else:
-        st.error("Please upload a background image and enter your OpenAI API key.")
+    # Text input for prompt
+    prompt = st.text_input("Describe the defect (e.g., 'heavy rust on the pipeline'):")
+
+    # Generate synthetic defect image
+    if st.button("Generate Synthetic Defect"):
+        if openai_api_key and prompt:
+            # Generate synthetic defect image
+            image_url = generate_synthetic_image(prompt, openai_api_key)
+            synthetic_image = download_image(image_url)
+            
+            # Segment the asset
+            mask = segment_asset(background_image)
+
+            # Overlay defect
+            result_image = overlay_defect(background_image, synthetic_image, mask)
+
+            # Display result
+            st.image(result_image, caption="Synthetic Image with Defect", use_column_width=True)
+        else:
+            st.error("Please provide a valid API key and prompt.")
