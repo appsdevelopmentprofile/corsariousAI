@@ -6,20 +6,24 @@ import streamlit as st
 import openai
 import requests
 
-# Function to generate a synthetic image based on a prompt
 def generate_synthetic_image(prompt, api_key):
     openai.api_key = api_key
     try:
+        st.info("Generating synthetic image...")
         response = openai.Image.create(prompt=prompt, n=1, size="1024x1024")
         image_url = response['data'][0]['url']
-        response = requests.get(image_url)
+        response = requests.get(image_url) 1    
+1.
+github.com
+github.com
+
         synthetic_image = Image.open(BytesIO(response.content)).convert("RGB")
+        st.success("Synthetic image generated successfully!")
         return synthetic_image
     except Exception as e:
         st.error(f"Error generating image: {e}")
         return None
 
-# Function to segment the asset (equipment) using thresholding
 def segment_asset(image):
     image_np = np.array(image)
     try:
@@ -30,7 +34,6 @@ def segment_asset(image):
         st.error(f"Error during segmentation: {e}")
         return None
 
-# Function to overlay the defect on the segmented asset
 def overlay_defect(background_image, synthetic_image, mask, alpha=0.1):
     # Resize synthetic image
     synthetic_image = synthetic_image.resize(background_image.size, Image.Resampling.LANCZOS)
@@ -39,9 +42,9 @@ def overlay_defect(background_image, synthetic_image, mask, alpha=0.1):
     background_np = np.array(background_image)
     synthetic_np = np.array(synthetic_image)
 
-    # Reshape mask (optional)
-    mask_np = np.expand_dims(np.array(mask) / 255, axis=-1)  # Normalize and add channel
-    mask_np = np.repeat(mask_np, 3, axis=-1)  # Repeat for 3 channels
+    # Reshape mask to match background channels
+    mask_np = np.expand_dims(np.array(mask) / 255, axis=-1)
+    mask_np = np.repeat(mask_np, 3, axis=-1)
 
     # Blend images
     blended_np = (background_np * (1 - mask_np) + synthetic_np * mask_np * alpha).astype(np.uint8)
@@ -50,14 +53,31 @@ def overlay_defect(background_image, synthetic_image, mask, alpha=0.1):
     blended_image = Image.fromarray(blended_np)
     return blended_image
 
-# Streamlit UI
 def main():
     st.title("Synthetic Defect Generation for Assets")
 
-    # Sidebar for API key input
     with st.sidebar:
         openai_api_key = st.text_input("Insert your OpenAI API key:", type="password")
         st.markdown("-------")
 
-    # Upload original image
-    uploaded_file = st.file_uploader("Upload an image of the asset (equipment):",
+    uploaded_file = st.file_uploader("Upload an image of the asset (equipment):", type=["jpg", "png", "jpeg"])
+
+    if uploaded_file is not None:
+        background_image = Image.open(uploaded_file).convert("RGB")
+        st.image(background_image, caption="Uploaded Image", use_column_width=True)
+
+        prompt = st.text_input("Describe the defect (e.g., 'heavy rust on the pipeline'):")
+
+        if st.button("Generate Synthetic Defect"):
+            if openai_api_key and prompt:
+                synthetic_image = generate_synthetic_image(prompt, openai_api_key)
+                if synthetic_image:
+                    mask = segment_asset(background_image)
+                    if mask:
+                        result_image = overlay_defect(background_image, synthetic_image, mask)
+                        st.image(result_image, caption="Synthetic Image with Defect", use_column_width=True)
+            else:
+                st.error("Please provide a valid API key and prompt.")
+
+if __name__ == "__main__":
+    main()
