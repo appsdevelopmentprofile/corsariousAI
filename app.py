@@ -34,7 +34,7 @@ def segment_asset(image):
 
     return Image.fromarray(mask)
 
-def overlay_defect(background_image, synthetic_image, mask, alpha=0.5):
+def overlay_defect(background_image, synthetic_image, mask, alpha=0.7):
     # Resize synthetic image
     synthetic_image = synthetic_image.resize(background_image.size, Image.Resampling.LANCZOS)
 
