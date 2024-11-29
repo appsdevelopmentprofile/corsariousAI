@@ -45,7 +45,7 @@ def overlay_defect_on_pipeline(background_image, synthetic_image, mask):
     # Convert images to numpy arrays
     background_np = np.array(background_image)
     synthetic_np = np.array(synthetic_image)
-    mask_np = np.array(mask) / 255  # Normalize mask to [0, 1]
+    mask_np = np.array(mask) / 50  # Normalize mask to [0, 1]
     
     # Blend images only in masked regions (apply defect only to the pipeline)
     blended_np = np.where(mask_np[..., None] == 1, synthetic_np, background_np).astype(np.uint8)
