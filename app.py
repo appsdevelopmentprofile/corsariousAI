@@ -1,36 +1,39 @@
 import openai
-import os
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
 import streamlit as st
 
-# Function to generate the synthetic image using OpenAI API
-def generate_image(prompt, api_key):
+# Function to generate synthetic features using OpenAI's API
+def generate_synthetic_features(prompt, api_key):
     # Set up the OpenAI API key
     openai.api_key = api_key
     
-    # Use the DALL-E model to generate an image based on the prompt
+    # Use DALL-E to generate the synthetic image
     response = openai.Image.create(
         prompt=prompt,
         n=1,
         size="1024x1024"
     )
     
-    # Extract the image URL from the response
+    # Extract the image URL
     image_url = response['data'][0]['url']
     
-    return image_url
-
-# Function to download the image
-def download_image(image_url, save_path):
-    # Download the image from the URL
+    # Download the generated image
     response = requests.get(image_url)
-    image = Image.open(BytesIO(response.content))
+    synthetic_image = Image.open(BytesIO(response.content))
     
-    # Save the image
-    image.save(save_path)
-    return save_path
+    return synthetic_image
+
+# Function to blend the uploaded image and synthetic features
+def blend_images(background_image, synthetic_image, alpha=0.5):
+    # Resize synthetic image to match background size
+    synthetic_image = synthetic_image.resize(background_image.size, Image.ANTIALIAS)
+    
+    # Blend the images together
+    blended_image = Image.blend(background_image, synthetic_image, alpha)
+    
+    return blended_image
 
 # Streamlit UI
 with st.sidebar:
@@ -38,43 +41,44 @@ with st.sidebar:
     st.markdown("-------")
 
 # Title
-st.title("Synthetic Image Generation with Structural Consistency")
+st.title("Synthetic Image Generation with Background Preservation")
 
-# Dropdown menus for asset and defect selection
-asset = st.selectbox("Select an asset", ["Pipeline", "Tank", "Pump", "Valve"])
-defect = st.selectbox("Select a defect", ["Rust", "Crack", "Leak", "Dirt"])
+# File uploader for background image
+uploaded_file = st.file_uploader("Upload a background image...", type=["jpg", "png", "jpeg"])
 
-# Text input for prompt
-user_features = st.text_input("Describe the new features you want to add", value="Heavy rust, corrosion, weathered, damaged, old, abandoned")
+# Text input for synthetic features prompt
+prompt = st.text_input("Describe the new features for the synthetic image:", value="Heavy rust, corrosion, weathered, damaged, old, abandoned")
 
-# Placeholder for image upload and display
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("Original Image")
-    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
+# Display the uploaded image
+if uploaded_file is not None:
+    # Open the image using PIL
+    background_image = Image.open(uploaded_file)
     
-    if uploaded_file is not None:
-        # Open the image using PIL
-        image = Image.open(uploaded_file)
-        # Display the image in Streamlit
-        st.image(image, caption="Uploaded Image", use_column_width=False)
+    # Display the uploaded image
+    st.image(background_image, caption="Uploaded Background Image", use_column_width=True)
 
-# Generate button and synthetic image logic
+# Generate button
 if st.button("Generate Synthetic Image"):
-    if openai_api_key:
-        if uploaded_file is not None:
-            # Generate a prompt that includes both the structure and the new features
-            image_description = f"An image of a {asset} with the structure similar to the uploaded image, but showing {defect}. {user_features}."
-            
-            # Generate the synthetic image
-            image_url = generate_image(image_description, openai_api_key)
-            
-            with col2:
-                st.subheader("Synthetic Image")
-                # Display the synthetic image in Streamlit
-                st.image(image_url, caption="Synthetic Image", use_column_width=True)
-        else:
-            st.warning("Please upload an image to use as a reference.")
+    if openai_api_key and uploaded_file:
+        # Generate synthetic features
+        st.write("Generating synthetic features...")
+        synthetic_features = generate_synthetic_features(prompt, openai_api_key)
+        
+        # Blend synthetic features into the uploaded background
+        st.write("Blending synthetic features with the background image...")
+        blended_image = blend_images(background_image, synthetic_features, alpha=0.5)
+        
+        # Display the final blended image
+        st.image(blended_image, caption="Generated Synthetic Image", use_column_width=True)
+        
+        # Option to download the blended image
+        buffered = BytesIO()
+        blended_image.save(buffered, format="PNG")
+        st.download_button(
+            label="Download Synthetic Image",
+            data=buffered.getvalue(),
+            file_name="synthetic_image.png",
+            mime="image/png"
+        )
     else:
-        st.warning("Please enter your OpenAI API key.")
+        st.error("Please upload a background image and enter your OpenAI API key.")
