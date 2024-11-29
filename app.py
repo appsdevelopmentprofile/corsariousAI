@@ -56,6 +56,10 @@ def main():
         openai_api_key = st.text_input("Insert your OpenAI API key:", type="password")
         st.markdown("-------")
 
+    # Dropdown menus for selecting asset and defect
+    asset = st.selectbox("Select an asset", ["Pipeline", "Tank", "Pump", "Valve"])
+    defect = st.selectbox("Select a defect", ["Rust", "Crack", "Leak", "Dirt"])
+
     uploaded_file = st.file_uploader("Upload an image of the asset (equipment):", type=["jpg", "png", "jpeg"])
 
     if uploaded_file is not None:
