@@ -49,17 +49,23 @@ def overlay_defect(background_image, synthetic_image, mask, alpha=0.7):
     # Convert images to numpy arrays
     background_np = np.array(background_image)
     synthetic_np = np.array(synthetic_image)
+    mask_np = np.array(mask) / 255.0  # Normalize mask to [0, 1]
     
-    # Normalize and expand mask to match the background image dimensions (3 channels)
-    mask_np = np.array(mask) / 255  # Normalize mask to [0, 1]
-    mask_np_expanded = np.stack([mask_np] * 3, axis=-1)  # Expand mask to 3 channels
-
-    # Blend images only in masked regions
-    blended_np = (background_np * (1 - mask_np_expanded) + synthetic_np * mask_np_expanded * alpha).astype(np.uint8)
+    # Ensure synthetic and background images have the same dimensions
+    if synthetic_np.shape != background_np.shape:
+        raise ValueError("Synthetic image and background image dimensions do not match.")
+    
+    # Apply defect only on the masked region (asset)
+    defect_region = (synthetic_np * mask_np * alpha).astype(np.uint8)
+    untouched_region = (background_np * (1 - mask_np)).astype(np.uint8)
+    blended_np = defect_region + untouched_region
     
     # Convert back to a PIL image
     blended_image = Image.fromarray(blended_np)
     return blended_image
+
+
+
 
 
 # Streamlit UI
