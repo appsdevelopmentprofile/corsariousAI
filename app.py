@@ -79,5 +79,21 @@ def main():
             else:
                 st.error("Please provide a valid API key and prompt.")
 
+    # Add the PWA manifest link and service worker registration
+    st.markdown("""
+        <link rel="manifest" href="/manifest.json">
+        <script>
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/service-worker.js').then(function(registration) {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    }).catch(function(error) {
+                        console.log('Service Worker registration failed:', error);
+                    });
+                });
+            }
+        </script>
+    """, unsafe_allow_html=True)
+
 if __name__ == "__main__":
     main()
