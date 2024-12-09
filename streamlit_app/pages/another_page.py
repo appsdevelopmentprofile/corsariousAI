@@ -8,9 +8,9 @@ import os
 
 # --- Set page configuration ---
 st.set_page_config(
-    page_title="corsarious",
-    layout="wide",
-    page_icon=" "
+   page_title="corsarious",
+   layout="wide",
+   page_icon=" "
 )
 
 # --- Main Application ---
