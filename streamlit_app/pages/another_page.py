@@ -25,11 +25,10 @@ def insert_tags_to_db(doc_name, tags):
     for tag in tags:
         try:
             cursor.execute(
-                "INSERT INTO dbo.EquTag (DocumentName, tag) VALUES (?, ?)",
-                doc_name,
-                tag
+                "INSERT INTO dbo.EquTag (DocumentName, tag) VALUES (%s, %s)",
+                (doc_name, tag)
             )
-        except pyodbc.IntegrityError:
+        except pymssql.IntegrityError:  # Catch integrity errors with pymssql
             st.warning(f"Duplicate entry for DocumentName: {doc_name}")
     
     conn.commit()
