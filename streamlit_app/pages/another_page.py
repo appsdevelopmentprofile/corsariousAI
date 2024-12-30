@@ -5,18 +5,17 @@ from PIL import Image
 import easyocr
 from ultralytics import YOLO
 import os
-import pyodbc  # For database connection
+import pymssql
 
-# --- Database Connection Setup ---
 def connect_to_db():
-    conn_str = (
-        "DRIVER={ODBC Driver 17 for SQL Server};"
-        "SERVER=rfosqlserver.database.windows.net;"
-        "DATABASE=master;"
-        "UID=rfotest;"
-        "PWD=BTColombia2022.;"
+    conn = pymssql.connect(
+        server='rfosqlserver.database.windows.net',
+        user='rfotest',
+        password='BTColombia2022.',
+        database='master'
     )
-    return pyodbc.connect(conn_str)
+    return conn
+
 
 # Function to insert tags into the database
 def insert_tags_to_db(doc_name, tags):
