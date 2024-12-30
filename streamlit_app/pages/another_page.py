@@ -122,6 +122,3 @@ if uploaded_file is not None:
                 with cols[(i + len(instrument_shapes)) % 3]:
                     st.image(cropped_circle, caption=f"Circle {i + 1}")
                     st.write(f"Text: {extracted_text}")
--- 
-   
-           Juan Felipe Rivera Cortes     President, Co-founder      -    SAIT Artificial Intelligence Club     M: +1 368 886 2084     W: https://www.linkedin.com/company/sait-ai-club            
