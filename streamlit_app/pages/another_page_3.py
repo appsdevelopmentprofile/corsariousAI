@@ -15,17 +15,20 @@ st.set_page_config(page_title="PDF Tag Detection", layout="wide")
 # --- Database Configuration ---
 # MSSQL Database Connection
 def connect_to_mssql():
-    mssql_server = 'rfocentral02.database.windows.net'
-    mssql_database = 'RFOCentral_Dev3' 
-    mssql_username = 'AiProjectTestUser'
-    mssql_password = '7GJ407c^uOY['
-    mssql_table = 'AttachmentXRef'
-    return pymssql.connect(server, username, password, database)
+    mssql_server = os.getenv("MSSQL_SERVER")
+    mssql_database = os.getenv("MSSQL_DATABASE")
+    mssql_username = os.getenv("MSSQL_USERNAME")
+    mssql_password = os.getenv("MSSQL_PASSWORD")
+    return pymssql.connect(
+        server=mssql_server,
+        user=mssql_username,
+        password=mssql_password,
+        database=mssql_database
+    )
 
 # MongoDB Connection
-mongo_uri = "mongodb+srv://AIDatabase:BTColombia2022@sandbox.bxohv.mongodb.net/?retryWrites=true&w=majority&appName=sandbox"
-mongo_db_name = "AIDatabase"
-mongo_collection = "fs.files"
+mongo_uri = os.getenv("MONGO_URI")
+mongo_db_name = os.getenv("MONGO_DB_NAME")
 
 try:
     mongo_client = MongoClient(mongo_uri)
