@@ -6,6 +6,8 @@ import streamlit as st
 import openai
 import requests
 
+st.set_option('server.enableDebugMode', True)
+
 def generate_synthetic_image(prompt, api_key):
     openai.api_key = api_key
     try:
