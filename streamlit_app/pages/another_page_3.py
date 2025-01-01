@@ -12,6 +12,11 @@ import gridfs
 # --- Set page configuration ---
 st.set_page_config(page_title="PDF Tag Detection", layout="wide")
 
+
+from dotenv import load_dotenv
+load_dotenv()
+
+
 # --- Database Configuration ---
 # MSSQL Database Connection
 def connect_to_mssql():
