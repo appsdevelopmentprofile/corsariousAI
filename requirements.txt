@@ -16,3 +16,5 @@ python-docx==0.8.11
 reportlab
 pdf2image
 pymssql
+gridfs
+pymongo
