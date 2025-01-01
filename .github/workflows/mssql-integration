@@ -1,0 +1,49 @@
+name: MSSQL Integration
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  mssql-job:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Install Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pymssql
+
+    - name: Connect to MSSQL and Execute Query
+      env:
+        MSSQL_SERVER: ${{ secrets.MSSQL_SERVER }}
+        MSSQL_DATABASE: ${{ secrets.MSSQL_DATABASE }}
+        MSSQL_USERNAME: ${{ secrets.MSSQL_USERNAME }}
+        MSSQL_PASSWORD: ${{ secrets.MSSQL_PASSWORD }}
+      run: |
+        python - <<EOF
+        import pymssql
+        try:
+            conn = pymssql.connect(
+                server="${{ secrets.MSSQL_SERVER }}",
+                user="${{ secrets.MSSQL_USERNAME }}",
+                password="${{ secrets.MSSQL_PASSWORD }}",
+                database="${{ secrets.MSSQL_DATABASE }}"
+            )
+            cursor = conn.cursor()
+            cursor.execute("SELECT TOP 1 * FROM AttachmentsXRef")  # Example query
+            for row in cursor.fetchall():
+                print(row)
+            conn.close()
+        except Exception as e:
+            print(f"Error: {e}")
+        EOF
