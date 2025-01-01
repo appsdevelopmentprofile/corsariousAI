@@ -18,4 +18,4 @@ pdf2image
 pymssql
 gridfs
 pymongo
-python-dotenv
+python-dotenv==1.0.0
