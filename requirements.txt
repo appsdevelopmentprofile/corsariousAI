@@ -5,7 +5,7 @@ streamlit
 opencv-python>=4.7.0.68
 numpy==1.26.0
 easyocr
-ultralytics>=8.0.0
+ultralytics
 pathlib
 streamlit-authenticator==0.1.5
 speechrecognition==3.8.1
