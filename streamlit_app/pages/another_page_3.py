@@ -12,10 +12,8 @@ import gridfs
 # --- Set page configuration ---
 st.set_page_config(page_title="PDF Tag Detection", layout="wide")
 
-
 from dotenv import load_dotenv
 load_dotenv()
-
 
 # --- Database Configuration ---
 # MSSQL Database Connection
@@ -55,8 +53,13 @@ st.title("PDF Tag Detection and Database Integration")
 uploaded_file = st.file_uploader("Upload an Image (PNG, JPG, JPEG)", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
+    # Ensure the 'uploads' directory exists
+    upload_dir = "uploads"
+    if not os.path.exists(upload_dir):
+        os.makedirs(upload_dir)
+
     # Save the uploaded file
-    save_path = os.path.join("uploads", uploaded_file.name)
+    save_path = os.path.join(upload_dir, uploaded_file.name)
     with open(save_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
