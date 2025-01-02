@@ -52,7 +52,7 @@ model = YOLO(model_path)
 st.title("PDF Tag Detection and Database Integration")
 
 # File uploader
-uploaded_file = st.file_uploader("Upload a PDF", type="pdf, png")
+uploaded_file = st.file_uploader("Upload an Image (PNG, JPG, JPEG)", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
     # Save the uploaded file
