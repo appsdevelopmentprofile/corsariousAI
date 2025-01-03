@@ -1,124 +1,149 @@
 import streamlit as st
-import cv2
-import numpy as np
-from PIL import Image
-import easyocr
-from ultralytics import YOLO
 import os
+import subprocess
+from pydub import AudioSegment
+import speech_recognition as sr
+from docx import Document
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from pdf2image import convert_from_path
+import tempfile
 
-# --- Set page configuration ---
-st.set_page_config(
-    page_title="Corsarious",
-    layout="wide",
-    page_icon=" "
-)
+# Set the FFMPEG_BINARY to the direct path of ffmpeg executable
+os.environ["FFMPEG_BINARY"] = "/usr/local/bin/ffmpeg"
+os.environ["FFPROBE_BINARY"] = "/usr/local/bin/ffprobe"
 
-# --- Main Application ---
-# Initialize EasyOCR reader
-reader = easyocr.Reader(['en'], verbose=True)
+# Function to check if ffmpeg is accessible
+def check_ffmpeg():
+    try:
+        # Run ffmpeg command to check its version
+        result = subprocess.run(['sudo', 'ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        st.write("FFmpeg version detected successfully:")
+        st.write(result.stdout)
+    except FileNotFoundError:
+        st.error("FFmpeg is not installed or not found in the specified path.")
+    except PermissionError:
+        st.error("Permission denied while trying to run ffmpeg with sudo.")
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
 
-# Load the YOLO model
-model_path = "yolov5s.pt"  # Path to your downloaded YOLOv5 model
-model = YOLO(model_path)
+# Function 1: Play "engineer_diagnosis.wav" file from local directory
+def play_engineer_diagnosis():
+    st.header("Stage 1: Play 'engineer_diagnosis.wav'")
+    file_path = "engineer_diagnosis.wav"
+    if os.path.exists(file_path):
+        st.audio(file_path, format="audio/wav")
+    else:
+        st.error("File 'engineer_diagnosis.wav' not found!")
 
-# Streamlit app title
-st.title("P&ID Instrumentation and Symbol Detection")
+# Function 2: Record voice, save as wav, and allow playback
+def record_voice():
+    st.header("Stage 2: Record Voice")
+    uploaded_file = st.file_uploader("Choose a file", type=["wav", "mp3"])
+    if uploaded_file:
+        audio = AudioSegment.from_file(uploaded_file)
+        wav_file_path = "uploaded_audio.wav"
+        audio.export(wav_file_path, format="wav")
+        st.success(f"Audio uploaded and saved as {wav_file_path}!")
+        st.audio(wav_file_path, format="audio/wav")
 
-# File uploader for image input
-uploaded_file = st.file_uploader("Upload an Image (PNG, JPG, JPEG)", type=["jpg", "jpeg", "png"])
+# Function 3: Convert speech from "electric_unit_heater.wav" file to text using Google Speech Recognition
+def process_speech_to_text():
+    st.header("Stage 3: Recognize Speech from 'electric_unit_heater.wav'")
+    wav_file = "electric_unit_heater.wav"
+    if os.path.exists(wav_file):
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(wav_file) as source:
+            audio = recognizer.record(source)
+            try:
+                text = recognizer.recognize_google(audio)
+                st.write("Recognized Text:")
+                sentences = text.split('.')
+                for i, sentence in enumerate(sentences, 1):
+                    st.write(f"{i}. {sentence.strip()}")
+                return sentences
+            except sr.UnknownValueError:
+                st.error("Speech not recognized.")
+            except sr.RequestError as e:
+                st.error(f"Error with the request: {e}")
+    else:
+        st.error(f"File '{wav_file}' not found!")
+    return []
 
-if uploaded_file is not None:
-    # Read the uploaded image
-    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    original_img = img.copy()
+# Function 4: Create a checklist from recognized speech
+def create_checklist_document(sentences):
+    st.header("Stage 4: Create Checklist from Recognized Speech")
+    if not sentences:
+        st.error("No sentences provided to generate the checklist.")
+        return
 
-    # Display the uploaded image
-    st.subheader("Uploaded Image:")
-    st.image(img, channels="BGR")
+    # Create document
+    document = Document()
+    document.add_heading('Field Engineer Checklist', level=1)
 
-    # --- YOLO Symbol Detection ---
-    st.subheader("Symbol Detection with YOLOv5 (yolov5s.pt)")
+    table = document.add_table(rows=1, cols=2)
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = 'Question'
+    hdr_cells[1].text = 'Answer (YES/NO)'
 
-    # Perform inference with the YOLO model
-    results = model(img)
+    for sentence in sentences:
+        if sentence.strip():
+            row_cells = table.add_row().cells
+            row_cells[0].text = sentence.strip()
+            row_cells[1].text = '☐ YES ☐ NO'
 
-    # Display the results
-    st.subheader("Detection Results:")
+    buffer = BytesIO()
+    document.save(buffer)
+    buffer.seek(0)
 
-    # Access bounding boxes, labels, and confidence scores
-    for *xyxy, conf, cls in results[0].boxes.data:
-        label = model.names[int(cls)]
-        x_min, y_min, x_max, y_max = map(int, xyxy)
-        st.write(f"Detected: {label} with confidence {conf:.2f}")
-        cv2.rectangle(img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-
-    # Display annotated image with YOLO results
-    st.image(img, caption="YOLO Annotated Image", use_container_width=True)
-
-    # --- EasyOCR Text Detection and Shape Detection ---
-    st.subheader("Text Extraction and Shape Detection")
-
-    # Preprocessing for contours
-    gray = cv2.cvtColor(original_img, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    dilated = cv2.dilate(edges, kernel, iterations=2)
-    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Detect and annotate instrument shapes
-    instrument_shapes = []
-    for contour in contours:
-        x, y, w, h = cv2.boundingRect(contour)
-        if 50 < w < 500 and 50 < h < 500:
-            instrument_shapes.append((x, y, w, h))
-            cv2.rectangle(original_img, (x, y), (x + w, y + h), (255, 0, 0), 2)
-
-    # Detect circles using Hough Circle Transform
-    gray_blur = cv2.GaussianBlur(gray, (9, 9), 2)
-    circles = cv2.HoughCircles(
-        gray_blur,
-        cv2.HOUGH_GRADIENT,
-        dp=1,
-        minDist=50,
-        param1=50,
-        param2=30,
-        minRadius=10,
-        maxRadius=50
+    st.download_button(
+        label="Download Checklist Document",
+        data=buffer,
+        file_name="field_engineer_checklist.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
-    # Draw circles on the original image
-    if circles is not None:
-        circles = np.uint16(np.around(circles))
-        for circle in circles[0, :]:
-            center = (circle[0], circle[1])
-            radius = circle[2]
-            cv2.circle(original_img, center, radius, (0, 255, 0), 2)
+    # Call the function to display the first page as a visual preview
+    display_docx_as_image(buffer)
 
-    # Display detected shapes and text
-    st.subheader("Processed Image with Detected Shapes and Circles")
-    st.image(original_img, channels="BGR")
+# Convert .docx to PDF and then PDF to image (first page)
+def convert_docx_to_pdf(buffer):
+    temp_pdf_path = tempfile.mktemp(suffix=".pdf")
+    document = Document(buffer)
+    c = canvas.Canvas(temp_pdf_path, pagesize=letter)
+    c.setFont("Helvetica", 10)
+    for paragraph in document.paragraphs:
+        c.drawString(100, 750, paragraph.text)
+        c.showPage()
+    c.save()
+    return temp_pdf_path
 
-    # Extract text from detected shapes
-    st.subheader("Extracted Text from Detected Shapes and Circles")
-    cols = st.columns(3)
+def display_docx_as_image(buffer):
+    try:
+        # Convert the .docx to PDF
+        temp_pdf_path = convert_docx_to_pdf(buffer)
 
-    for i, (x, y, w, h) in enumerate(instrument_shapes):
-        cropped_shape = img[y:y + h, x:x + w]
-        text = reader.readtext(cropped_shape, detail=0)
-        extracted_text = " ".join(text) if text else "No text detected"
-        with cols[i % 3]:
-            st.image(cropped_shape, caption=f"Shape {i + 1}")
-            st.write(f"Text: {extracted_text}")
+        # Convert the first page of the PDF to an image
+        images = convert_from_path(temp_pdf_path, first_page=1, last_page=1)
 
-    if circles is not None:
-        for i, circle in enumerate(circles[0, :]):
-            x, y, r = circle
-            cropped_circle = original_img[y-r:y+r, x-r:x+r]
-            if cropped_circle.size > 0:
-                text = reader.readtext(cropped_circle, detail=0)
-                extracted_text = " ".join(text) if text else "No text detected"
-                with cols[(i + len(instrument_shapes)) % 3]:
-                    st.image(cropped_circle, caption=f"Circle {i + 1}")
-                    st.write(f"Text: {extracted_text}")
+        # Display the first page image in Streamlit
+        st.image(images[0], caption="First Page of the Checklist Document", use_column_width=True)
+
+    except Exception as e:
+        st.error(f"An error occurred while converting or displaying the document: {e}")
+
+# Main App
+st.title("Virtual Verbal Assisstant")
+
+if st.button("Stage 1: Play 'engineer_diagnosis.wav'"):
+    play_engineer_diagnosis()
+
+if st.button("Stage 2: Record Voice"):
+    record_voice()
+
+# Trigger Stage 4 automatically after Stage 3 (if text is recognized)
+if st.button("Stage 3: Recognize Speech from 'electric_unit_heater.wav'"):
+    sentences = process_speech_to_text()
+    if sentences:
+        create_checklist_document(sentences)  # Automatically trigger Stage 4 once text is recognized
