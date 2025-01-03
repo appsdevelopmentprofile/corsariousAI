@@ -54,7 +54,7 @@ if uploaded_file is not None:
         cv2.rectangle(img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
 
     # Display annotated image with YOLO results
-    st.image(img, caption="YOLO Annotated Image", use_column_width=True)
+    st.image(img, caption="YOLO Annotated Image", use_container_width=True)
 
     # --- EasyOCR Text Detection and Shape Detection ---
     st.subheader("Text Extraction and Shape Detection")
