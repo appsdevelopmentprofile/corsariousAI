@@ -1,101 +1,124 @@
-from io import BytesIO
-from PIL import Image
-import numpy as np
-import cv2
 import streamlit as st
-import openai
-import requests
+import cv2
+import numpy as np
+from PIL import Image
+import easyocr
+from ultralytics import YOLO
+import os
 
-st.set_option('server.enableDebugMode', True)
+# --- Set page configuration ---
+st.set_page_config(
+    page_title="Corsarious",
+    layout="wide",
+    page_icon=" "
+)
 
-def generate_synthetic_image(prompt, api_key):
-    openai.api_key = api_key
-    try:
-        st.info("Generating synthetic image...")
-        response = openai.Image.create(prompt=prompt, n=1, size="1024x1024")
-        image_url = response['data'][0]['url']
-        response = requests.get(image_url)
-        synthetic_image = Image.open(BytesIO(response.content)).convert("RGB")
-        st.success("Synthetic image generated successfully!")
-        return synthetic_image
-    except Exception as e:
-        st.error(f"Error generating image: {e}")
-        return None
+# --- Main Application ---
+# Initialize EasyOCR reader
+reader = easyocr.Reader(['en'], verbose=True)
 
-def segment_asset(image):
-    # Convert to grayscale and apply edge detection
-    gray = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2GRAY)
-    edges = cv2.Canny(gray, 50, 150)
+# Load the YOLO model
+model_path = "yolov5s.pt"  # Path to your downloaded YOLOv5 model
+model = YOLO(model_path)
 
-    # Find contours of the pipeline
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+# Streamlit app title
+st.title("P&ID Instrumentation and Symbol Detection")
 
-    # Create a mask with the pipeline area
-    mask = np.zeros_like(gray)
-    cv2.drawContours(mask, contours, -1, 255, thickness=-1)
+# File uploader for image input
+uploaded_file = st.file_uploader("Upload an Image (PNG, JPG, JPEG)", type=["jpg", "jpeg", "png"])
 
-    return Image.fromarray(mask)
+if uploaded_file is not None:
+    # Read the uploaded image
+    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    original_img = img.copy()
 
-def overlay_defect(background_image, synthetic_image, mask, alpha=0.7):
-    # Resize synthetic image
-    synthetic_image = synthetic_image.resize(background_image.size, Image.Resampling.LANCZOS)
+    # Display the uploaded image
+    st.subheader("Uploaded Image:")
+    st.image(img, channels="BGR")
 
-    # Convert images to numpy arrays
-    background_np = np.array(background_image)
-    synthetic_np = np.array(synthetic_image)
-    mask_np = np.array(mask) / 255
+    # --- YOLO Symbol Detection ---
+    st.subheader("Symbol Detection with YOLOv5 (yolov5s.pt)")
 
-    # Blend images, focusing on the masked area
-    blended_np = background_np.copy()
-    blended_np[mask_np == 1] = (background_np * (1 - alpha) + synthetic_np * alpha)[mask_np == 1]
+    # Perform inference with the YOLO model
+    results = model(img)
 
-    return Image.fromarray(blended_np)
+    # Display the results
+    st.subheader("Detection Results:")
 
-def main():
-    st.title("Synthetic Defect Generation for Assets")
+    # Access bounding boxes, labels, and confidence scores
+    for *xyxy, conf, cls in results[0].boxes.data:
+        label = model.names[int(cls)]
+        x_min, y_min, x_max, y_max = map(int, xyxy)
+        st.write(f"Detected: {label} with confidence {conf:.2f}")
+        cv2.rectangle(img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
 
-    with st.sidebar:
-        openai_api_key = st.text_input("Insert your OpenAI API key:", type="password")
-        st.markdown("-------")
+    # Display annotated image with YOLO results
+    st.image(img, caption="YOLO Annotated Image", use_container_width=True)
 
-    # Dropdown menus for selecting asset and defect
-    asset = st.selectbox("Select an asset", ["Pipeline", "Tank", "Pump", "Valve"])
-    defect = st.selectbox("Select a defect", ["Rust", "Crack", "Leak", "Dirt"])
+    # --- EasyOCR Text Detection and Shape Detection ---
+    st.subheader("Text Extraction and Shape Detection")
 
-    uploaded_file = st.file_uploader("Upload an image of the asset (equipment):", type=["jpg", "png", "jpeg"])
+    # Preprocessing for contours
+    gray = cv2.cvtColor(original_img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blurred, 50, 150)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    dilated = cv2.dilate(edges, kernel, iterations=2)
+    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    if uploaded_file is not None:
-        background_image = Image.open(uploaded_file).convert("RGB")
-        st.image(background_image, caption="Uploaded Image", use_column_width=True)
+    # Detect and annotate instrument shapes
+    instrument_shapes = []
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        if 50 < w < 500 and 50 < h < 500:
+            instrument_shapes.append((x, y, w, h))
+            cv2.rectangle(original_img, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
-        prompt = st.text_input("Describe the defect (e.g., 'heavy rust on the pipeline'):")
+    # Detect circles using Hough Circle Transform
+    gray_blur = cv2.GaussianBlur(gray, (9, 9), 2)
+    circles = cv2.HoughCircles(
+        gray_blur,
+        cv2.HOUGH_GRADIENT,
+        dp=1,
+        minDist=50,
+        param1=50,
+        param2=30,
+        minRadius=10,
+        maxRadius=50
+    )
 
-        if st.button("Generate Synthetic Defect"):
-            if openai_api_key and prompt:
-                synthetic_image = generate_synthetic_image(prompt, openai_api_key)
-                if synthetic_image:
-                    mask = segment_asset(background_image)
-                    if mask:
-                        result_image = overlay_defect(background_image, synthetic_image, mask)
-                        st.image(result_image, caption="Synthetic Image with Defect", use_column_width=True)
-            else:
-                st.error("Please provide a valid API key and prompt.")
+    # Draw circles on the original image
+    if circles is not None:
+        circles = np.uint16(np.around(circles))
+        for circle in circles[0, :]:
+            center = (circle[0], circle[1])
+            radius = circle[2]
+            cv2.circle(original_img, center, radius, (0, 255, 0), 2)
 
-    # Add the PWA manifest link and service worker registration
-    st.markdown("""
-        <link rel="manifest" href="/manifest.json">
-        <script>
-            if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                    navigator.serviceWorker.register('/service-worker.js').then(function(registration) {
-                        console.log('Service Worker registered with scope:', registration.scope);
-                    }).catch(function(error) {
-                        console.log('Service Worker registration failed:', error);
-                    });
-                });
-            }
-        </script>
-    """, unsafe_allow_html=True)
+    # Display detected shapes and text
+    st.subheader("Processed Image with Detected Shapes and Circles")
+    st.image(original_img, channels="BGR")
 
-if __name__ == "__main__":
-    main()
+    # Extract text from detected shapes
+    st.subheader("Extracted Text from Detected Shapes and Circles")
+    cols = st.columns(3)
+
+    for i, (x, y, w, h) in enumerate(instrument_shapes):
+        cropped_shape = img[y:y + h, x:x + w]
+        text = reader.readtext(cropped_shape, detail=0)
+        extracted_text = " ".join(text) if text else "No text detected"
+        with cols[i % 3]:
+            st.image(cropped_shape, caption=f"Shape {i + 1}")
+            st.write(f"Text: {extracted_text}")
+
+    if circles is not None:
+        for i, circle in enumerate(circles[0, :]):
+            x, y, r = circle
+            cropped_circle = original_img[y-r:y+r, x-r:x+r]
+            if cropped_circle.size > 0:
+                text = reader.readtext(cropped_circle, detail=0)
+                extracted_text = " ".join(text) if text else "No text detected"
+                with cols[(i + len(instrument_shapes)) % 3]:
+                    st.image(cropped_circle, caption=f"Circle {i + 1}")
+                    st.write(f"Text: {extracted_text}")
