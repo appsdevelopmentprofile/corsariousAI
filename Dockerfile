@@ -4,6 +4,11 @@ FROM python:3.12-slim
 # Set the working directory inside the container
 WORKDIR /appsdevelopmentprofile/SPE_Demo/streamlit_app
 
+# Install necessary system dependencies (libGL.so.1)
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy requirements.txt into the container at /app
 COPY requirements.txt .
 
